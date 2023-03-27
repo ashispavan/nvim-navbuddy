@@ -284,7 +284,7 @@ function display:new(obj)
 	obj.right = right_popup
 
 	-- Hidden cursor
-	local user_gui_cursor = vim.api.nvim_get_option("guicursor")
+	obj.user_guicursor = vim.api.nvim_get_option("guicursor")
 	vim.api.nvim_set_option("guicursor", "a:NavbuddyCursor")
 
 	-- Autocmds
@@ -310,17 +310,19 @@ function display:new(obj)
 		group = augroup,
 		buffer = obj.mid.bufnr,
 		callback = function()
-			if obj.navbuddy_leaving_window_for_action ~= true then
-				vim.api.nvim_set_option("guicursor", user_gui_cursor)
-				layout:unmount()
-				obj:clear_highlights()
+			if obj.leaving_window_for_action ~= true and obj.leaving_window_for_reorentation ~= true then
+				obj:close()
 			end
 		end
 	})
 
 	-- Mappings
 	for i, v in pairs(config.mappings) do
-		obj.mid:map("n", i, function() v(obj) end)
+		obj.mid:map("n", i, function()
+			display.leaving_window_for_action = true
+			v(obj)
+			display.leaving_window_for_action = false
+		end)
 	end
 
 	-- Display
@@ -353,7 +355,13 @@ function display:focus_range()
 			end
 		end
 
-		vim.api.nvim_win_set_cursor(self.for_win, {range["start"].line, range["end"].character})
+		vim.api.nvim_win_set_cursor(self.for_win, {range["start"].line, range["start"].character})
+
+		self.leaving_window_for_reorentation = true
+		vim.api.nvim_set_current_win(self.for_win)
+		vim.api.nvim_command("normal! zz")
+		vim.api.nvim_set_current_win(self.mid.winid)
+		self.leaving_window_for_reorentation = false
 	end
 end
 
@@ -383,6 +391,8 @@ function display:redraw()
 end
 
 function display:close()
+	display.leaving_window_for_action = false
+	vim.api.nvim_set_option("guicursor", self.user_guicursor)
 	self.layout:unmount()
 	self:clear_highlights()
 end
